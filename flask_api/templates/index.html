@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weka Model Web App</title>
+</head>
+<body>
+    <h2>Test Uploading Data for Prediction</h2>
+    <input type="file" id="fileInput"><br><br>
+    <label for="outputFormat">Output Format:</label>
+    <select id="outputFormat">
+        <option value="json">JSON</option>
+        <option value="csv">CSV</option>
+    </select><br><br>
+    <button onclick="getPrediction()">Predict</button>
+    <p id="result"></p>
+    
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+
+</body>
+</html>

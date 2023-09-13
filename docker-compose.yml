@@ -1,0 +1,55 @@
+version: '3.4'
+
+services:
+  xlstocsv:
+    build:
+      context: ./xlsToCsvConverter
+      dockerfile: Dockerfile.xlstocsv
+    env_file: ./.env
+    volumes:
+      - $SHARED_DATA:/$SHARED_DATA
+    command: tail -f /dev/null
+
+  perl_preprocessor:
+    build:
+      context: ./perl_preprocessor
+      dockerfile: Dockerfile.preprocessor
+    env_file: ./.env
+    volumes:
+      - $SHARED_DATA:/$SHARED_DATA
+    command: tail -f /dev/null
+
+  audiogenev4:
+    build:
+      context: ./audiogenev4
+      dockerfile: Dockerfile.audiogenev4
+    env_file: ./.env
+    volumes:
+      - $SHARED_DATA:/$SHARED_DATA
+    command: tail -f /dev/null
+
+  flask_api:
+    build:
+      context: ./flask_api
+      dockerfile: Dockerfile.flask_api
+    env_file: ./.env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - FLASK_APP=app.py
+      - FLASK_RUN_HOST='0.0.0.0'
+      - API_PORT=$API_INTERNAL_PORT
+    volumes:
+      # - .:/app
+      - $SHARED_DATA:/$SHARED_DATA
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - $API_CONTAINER_EXTERNAL_PORT:$API_INTERNAL_PORT
+    networks:
+    - default
+volumes:
+  shared_data:
+
+networks:
+  default:
+    # external: true
+    # name: nat
