@@ -104,7 +104,7 @@ def predict_audiogenev9():
     file_path = os.path.splitext(filepath)[0]
     
     o = '/shared_data/ag9_output.csv'
-    m = './audiogene_ml/audiogene-ml/notebooks/saved_models/cur_model.joblib'
+    m = './audiogene_ml/audiogene-ml/notebooks/saved_models/cur_model_lv3_compression.joblib'
     i = file_path
     
     cmd = f'python ./audiogene_ml/audiogene-ml/predict.py -i {i} -o {o} -m {m}'
