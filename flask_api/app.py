@@ -77,6 +77,53 @@ def predict_audiogenev4():
     else:
         return jsonify({'error': 'Unsupported output format'}), 400    
 
+@app.route('/predict/audiogenev9', methods=['POST'])
+def predict_audiogenev9():
+    # Check if a file was uploaded
+    if 'dataFile' not in request.files:
+        return jsonify({'error': 'No file uploaded'}), 400
+
+    file = request.files['dataFile']
+    
+    # Check if the file is empty
+    file.seek(0, os.SEEK_END)
+    size = file.tell()
+    file.seek(0)
+    if size == 0:
+        return jsonify({'error': 'Uploaded file is empty'}), 400
+    
+    # Save the uploaded file to a temporary location
+    filepath = os.path.join(SHARED_DIR, file.filename)
+    try:
+        file.save(filepath)
+    except Exception as e:
+        print(f"Error saving file: {e}")
+        return jsonify({'error': 'Error saving file'}), 500
+    
+    base_service = '/audiogene-web-service-'
+    file_path = os.path.splitext(filepath)[0]
+    
+    o = '/shared_data/ag9_output.csv'
+    m = './audiogene_ml/audiogene-ml/notebooks/saved_models/cur_model.joblib'
+    i = file_path
+    
+    cmd = f'python ./audiogene_ml/audiogene-ml/predict.py -i {i} -o {o} -m {m}'
+    container = get_container_by_name(docker_client, base_service+'audiogenev9-1')
+    container.exec_run(cmd)
+    
+    # Read the result using pandas
+    data = pd.read_csv(o, index_col=0)
+
+    outputFormat = request.form.get('format', 'json')
+    # Return the result in the desired format
+    if outputFormat == 'json':
+        return jsonify(data.to_dict(orient='index')), 200
+    elif outputFormat == 'csv':
+        csv_data = data.to_csv(index=False)
+        return csv_data, 200, {'Content-Type': 'text/csv'}
+    else:
+        return jsonify({'error': 'Unsupported output format'}), 400
+
 def get_container_by_name(client:docker.client.DockerClient, name:str) -> docker.models.containers.Container:
     containers = client.containers.list()
     container_by_name = {c.attrs['Name']:c.attrs['Id'] for c in containers}

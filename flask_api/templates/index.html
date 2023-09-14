@@ -13,7 +13,8 @@
         <option value="json">JSON</option>
         <option value="csv">CSV</option>
     </select><br><br>
-    <button onclick="getPrediction()">Predict</button>
+    <button onclick="getPrediction(4)">Predict with AG4</button>
+    <button onclick="getPrediction(9)">Predict with AG9</button>
     <p id="result"></p>
     
     <script src="{{ url_for('static', filename='script.js') }}"></script>
