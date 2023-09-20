@@ -40,6 +40,8 @@ WORKDIR /app
 COPY static /app/static
 COPY templates /app/templates
 COPY app.py /app/app.py
+COPY test.xlsx /app/test.xlsx
+COPY template1.xlsx /app/template1.xlsx
 
 # Make port 8080 available to the world outside this container
 EXPOSE $API_CONTAINER_EXTERNAL_PORT

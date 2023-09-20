@@ -1,0 +1,3 @@
+Patient,Age,Ear,dB of loss at:,dB of loss at:1,dB of loss at:2,dB of loss at:3,dB of loss at:4,dB of loss at:5,dB of loss at:6,dB of loss at:7,dB of loss at:8,dB of loss at:9
+(enter on patient form first),(Years),(L/R/Better),125 Hz,250 Hz,500 Hz,1000 Hz,1500 Hz,2000 Hz,3000 Hz,4000 Hz,6000 Hz,8000 Hz
+1,22,R,1,1,1,1,1,1,1,1,1,1
