@@ -3,6 +3,7 @@ import warnings
 
 from src.data import preprocessing, postprocessing
 from src.models.model_storage import load_model
+import logging
 
 parser = argparse.ArgumentParser(description="CLI for AudioGene 9.1")
 parser.add_argument('-i', '--input',
@@ -42,11 +43,15 @@ def predict(args: argparse.Namespace):
     # TODO: Add audiogram label-age concat preprocessing
     polys = [ord for ord in args.polys] if args.polys is not None else None
     df = preprocessing.process(args.input, poly_orders=polys)
+    print(df)
+    logging.warning(f"Dataframe: {df}")
 
     model = load_model(args.model)
 
     # Get predictions and rankings
     probabilities = model.predict_proba(df.drop(columns=['id', 'ear']))
+    print("Predictions: ", probabilities)
+    logging.warning(f"Predictions: {probabilities}")
 
     # Format and return results
     if args.cakephp:
