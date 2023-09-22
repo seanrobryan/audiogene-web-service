@@ -9,6 +9,8 @@ services:
     volumes:
       - $SHARED_DATA:/$SHARED_DATA
     command: tail -f /dev/null
+    networks:
+      - audiogene-network
 
   perl_preprocessor:
     build:
@@ -18,6 +20,8 @@ services:
     volumes:
       - $SHARED_DATA:/$SHARED_DATA
     command: tail -f /dev/null
+    networks:
+      - audiogene-network
 
   audiogenev4:
     build:
@@ -27,6 +31,9 @@ services:
     volumes:
       - $SHARED_DATA:/$SHARED_DATA
     command: tail -f /dev/null
+    networks:
+      - audiogene-network
+
   audiogenev9:
     build:
       context: ./audiogenev9
@@ -35,6 +42,8 @@ services:
     volumes:
       - $SHARED_DATA:/$SHARED_DATA
     command: tail -f /dev/null
+    networks:
+      - audiogene-network
     
   flask_api:
     build:
@@ -53,11 +62,10 @@ services:
     ports:
       - $API_CONTAINER_EXTERNAL_PORT:$API_INTERNAL_PORT
     networks:
-    - default
+      - audiogene-network
 volumes:
   shared_data:
 
 networks:
-  default:
-    # external: true
-    # name: nat
+  audiogene-network:  # Custom network added
+    external: true
