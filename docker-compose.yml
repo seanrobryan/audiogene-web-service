@@ -1,4 +1,4 @@
-version: '3.4'
+version: "3.4"
 
 services:
   xlstocsv:
@@ -44,7 +44,7 @@ services:
     command: tail -f /dev/null
     networks:
       - audiogene-network
-    
+
   flask_api:
     build:
       context: ./flask_api
@@ -67,5 +67,5 @@ volumes:
   shared_data:
 
 networks:
-  audiogene-network:  # Custom network added
+  audiogene-network: # Custom network added
     external: true

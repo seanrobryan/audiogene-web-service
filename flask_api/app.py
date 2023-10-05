@@ -18,9 +18,9 @@ path = os.path.dirname(os.path.abspath(__file__))
 print("Current working directory: ", os.getcwd())
 # print the contentes of the current working directory
 print("Current working directory contents: ", os.listdir())
-filepath_test = os.path.join(path, 'test.xlsx')
-# Copy the file to the shared directory
-subprocess.run(['cp', filepath_test, SHARED_DIR])
+# filepath_test = os.path.join(path, 'test.xlsx')
+# # Copy the file to the shared directory
+# subprocess.run(['cp', filepath_test, SHARED_DIR])
 
 @app.route('/')
 def index():
@@ -58,8 +58,13 @@ def predict_audiogenev4():
     
     # Get convert the input file to a csv
     csv_file_path = f"{file_path}.csv"
+    print("csv file path: ", csv_file_path)
     container = get_container_by_name(docker_client, base_service+'xlstocsv-1')
     cmd = f'java -jar ConvertToXLS2CSV.jar {filepath} {csv_file_path}'
+    # convert xls to csv using python
+    # import pandas as pd
+    # data_xls = pd.read_excel(filepath, index_col=None)
+    # data_xls.to_csv(csv_file_path, encoding='utf-8', index=False)
     container.exec_run(cmd)
     
     # Apply perl preprocessing
@@ -80,8 +85,20 @@ def predict_audiogenev4():
     with open(predictions_path, 'wb') as f:
         f.write(res.replace(b'\t', b',')) # Replace the sporadic tab seperation with comma seperation
     
-    # Read the result using pandas
-    data = pd.read_csv(predictions_path)
+    # Read the first line of the file
+    with open(predictions_path, 'r') as f:
+        first_line = f.readline().strip()
+
+    # Check if the first line contains 'ID' followed by a number
+    import re
+    if re.match(r'ID \d+', first_line):
+        # If it does, read the file without a header
+        data = pd.read_csv(predictions_path, header=None)
+    else:
+        # Otherwise, read the file normally
+        data = pd.read_csv(predictions_path)
+
+    # Rename the columns
     print("Data read from csv file after predictions: ", data)
     data.columns = [x for x in range(1, data.shape[1]+1)]
     print("Data after column renaming: ", data)
@@ -89,6 +106,7 @@ def predict_audiogenev4():
     outputFormat = request.form.get('format', 'json')
     # Return the result in the desired format
     if outputFormat == 'json':
+        print("returning json: {}".format(data.to_dict(orient='index')))
         return jsonify(data.to_dict(orient='index')), 200
     elif outputFormat == 'csv':
         csv_data = data.to_csv(index=False)
