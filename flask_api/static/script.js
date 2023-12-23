@@ -12,7 +12,7 @@ function getPrediction(modelNumber) {
   formData.append("format", outputFormat);
 
   // Send a POST request to the Flask API with the file and desired format
-  let url = "http://localhost:8081/predict/audiogenev" + modelNumber;
+  let url = "http://localhost:8080/predict/audiogenev" + modelNumber;
   console.log(url);
   fetch(url, {
     method: "POST",

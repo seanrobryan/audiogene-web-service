@@ -2,6 +2,7 @@ version: "3.4"
 
 services:
   xlstocsv:
+    restart: always
     build:
       context: ./xlsToCsvConverter
       dockerfile: Dockerfile.xlstocsv
@@ -13,6 +14,7 @@ services:
       - audiogene-network
 
   perl_preprocessor:
+    restart: always
     build:
       context: ./perl_preprocessor
       dockerfile: Dockerfile.preprocessor
@@ -24,6 +26,7 @@ services:
       - audiogene-network
 
   audiogenev4:
+    restart: always
     build:
       context: ./audiogenev4
       dockerfile: Dockerfile.audiogenev4
@@ -35,6 +38,7 @@ services:
       - audiogene-network
 
   audiogenev9:
+    restart: always
     build:
       context: ./audiogenev9
       dockerfile: Dockerfile.audiogenev9
@@ -46,6 +50,7 @@ services:
       - audiogene-network
 
   flask_api:
+    restart: always
     build:
       context: ./flask_api
       dockerfile: Dockerfile.flask_api
@@ -60,7 +65,7 @@ services:
       - $SHARED_DATA:/$SHARED_DATA
       - /var/run/docker.sock:/var/run/docker.sock
     ports:
-      - $API_CONTAINER_EXTERNAL_PORT:$API_INTERNAL_PORT
+      - $API_EXTERNAL_PORT:$API_INTERNAL_PORT
     networks:
       - audiogene-network
 volumes:
