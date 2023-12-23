@@ -121,9 +121,11 @@ def data_visualization():
     hearing_loss_over_age = processed_data.groupby('age', as_index=False)[features].mean()
     hearing_loss_over_age = hearing_loss_over_age.to_dict(orient='records')
 
+    # Features without age
+    features_without_age = ['125 Hz', '250 Hz', '500 Hz', '1000 Hz', '1500 Hz', '2000 Hz', '3000 Hz', '4000 Hz', '6000 Hz', '8000 Hz']
+
     # Data for Hearing Loss by Frequency
-    features_without_age = [feature for feature in features if feature != 'age']
-    hearing_loss_by_frequency = processed_data[features_without_age].mean().to_dict()
+    hearing_loss_by_frequency = {feature: processed_data[feature].mean() for feature in features_without_age}
 
     # Data for Hearing Loss Distribution
     hearing_loss_distribution = processed_data[features].values.flatten()
