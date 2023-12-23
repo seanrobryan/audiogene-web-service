@@ -42,9 +42,25 @@ def test_curl():
 def data_visualization():
     df = pd.read_csv(CSV_FILE_PATH)
 
+    # Define a dictionary mapping the old column names to the new ones
+    column_mapping = {
+    '125 dB': '125 Hz',
+    '250 dB': '250 Hz',
+    '500 dB': '500 Hz',
+    '1000 dB': '1000 Hz',
+    '1500 dB': '1500 Hz',
+    '2000 dB': '2000 Hz',
+    '3000 dB': '3000 Hz',
+    '4000 dB': '4000 Hz',
+    '6000 dB': '6000 Hz',
+    '8000 dB': '8000 Hz'
+    }
+
+    # Rename the columns
+    df.rename(columns=column_mapping, inplace=True)
+
     # Ensure that 'ethnicity' is excluded from the numeric conversion process
-    features = ['age', '125 dB', '250 dB', '500 dB', '1000 dB', '1500 dB', '2000 dB', '3000 dB', '4000 dB',
-                '6000 dB', '8000 dB']
+    features = ['age', '125 Hz', '250 Hz', '500 Hz', '1000 Hz', '1500 Hz', '2000 Hz', '3000 Hz', '4000 Hz', '6000 Hz', '8000 Hz']
     target = 'gene'
 
     # Preprocess the data
@@ -98,6 +114,23 @@ def data_visualization():
     heatmap = processed_data[features + ['gene_encoded', 'ethnicity_encoded']].corr()
     heatmap_data = heatmap.to_dict(orient='index')
 
+    # Data for Audiograms Per Gene
+    audiograms_per_gene = df['gene'].value_counts().to_dict()
+
+    # Data for Hearing Loss Over Age
+    hearing_loss_over_age = processed_data.groupby('age', as_index=False)[features].mean()
+    hearing_loss_over_age = hearing_loss_over_age.to_dict(orient='records')
+
+    # Data for Hearing Loss by Frequency
+    features_without_age = [feature for feature in features if feature != 'age']
+    hearing_loss_by_frequency = processed_data[features_without_age].mean().to_dict()
+
+    # Data for Hearing Loss Distribution
+    hearing_loss_distribution = processed_data[features].values.flatten()
+    hearing_loss_distribution = pd.Series(hearing_loss_distribution).value_counts().to_dict()
+
+    # Data for Ethnicity Distribution
+    ethnicity_distribution = processed_data['ethnicity'].value_counts().to_dict()
 
     # Combine all the data into a single JSON object
     visualization_data = {
@@ -107,6 +140,12 @@ def data_visualization():
         'scatterData': scatter_data.to_dict(orient='records'),
         'ageData': processed_data['age'].tolist(),
         'geneExpressionData': gene_expression_data.to_dict(orient='records'),
+        'audiogramsPerGene': audiograms_per_gene,
+        'hearingLossOverAge': hearing_loss_over_age,
+        'hearingLossByFrequency': hearing_loss_by_frequency,
+        'hearingLossDistribution': hearing_loss_distribution,
+        'ethnicityDistribution': ethnicity_distribution,
+
     }
 
     print("Completed data visualization")
