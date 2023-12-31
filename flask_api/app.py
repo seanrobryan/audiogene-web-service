@@ -15,6 +15,9 @@ from keras.models import Model
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import LabelEncoder
+from sklearn.manifold import TSNE
+from hdbscan import HDBSCAN
+from sklearn.preprocessing import StandardScaler
 
 app = Flask(__name__)
 
@@ -32,7 +35,7 @@ CSV_FILE_PATH = os.path.join(path, 'ag_9_full_dataset_processed_with_var.csv')
 GENES = ['ACTG1', 'CCDC50', 'CEACAM16', 'COCH', 'COL11A2', 'EYA4', 'DIAPH1',
          'GJB2', 'GRHL2', 'GSDME', 'KCNQ4', 'MIRN96', 'MYH14', 'MYH9', 'MYO6',
          'MYO7A', 'P2RX2', 'POU4F3', 'REST', 'SLC17A8', 'TECTA', 'TMC1', 'WFS1']
-
+age_groups = [(0, 20), (20, 40), (40, 60), (60, 80), (80, float('inf'))]
 
 @app.route('/')
 def index():
@@ -47,7 +50,6 @@ def test_curl():
 # [2] Refined Outlier Removal (Using Z-score)
 def remove_outliers_zscore_per_age_group_and_gene(df, threshold=3, underrepresented_threshold=35):
     # Define age groups
-    age_groups = [(0, 20), (20, 40), (40, 60), (60, 80), (80, float('inf'))]
 
     # Identifying underrepresented genes
     underrepresented_genes = df['gene'].value_counts()[df['gene'].value_counts() < underrepresented_threshold].index
@@ -154,6 +156,84 @@ def dynamic_class_balancing(df, feature_columns, target_column, label_encoder_ge
 
     return df_resampled, le_gene, label_encoder_ethnicity
 
+
+def assign_genes_to_clusters(cluster_counts, clustering_data):
+    # Initialize a dictionary to store the gene assigned to each cluster
+    assigned_genes = {}
+
+    # Create a dictionary to store the counts for each cluster
+    cluster_totals = defaultdict(float)
+    for (cluster, gene), count in cluster_counts.items():
+        cluster_totals[cluster] += count
+
+    # Initialize a set to store the genes that have been assigned
+    assigned_gene_set = set()
+
+    # While there are still clusters left and we haven't assigned 23 genes yet
+    while cluster_counts and len(assigned_genes) < 23:
+        # Find the cluster with the highest count for its most prevalent gene
+        max_gene_cluster = max(cluster_totals.keys(), key=lambda x: max(((count / cluster_totals[x], gene) for (cluster, gene), count in cluster_counts.items() if cluster == x and gene not in assigned_gene_set), default=(0, 'None'))[1])
+        max_gene = max(((count / cluster_totals[max_gene_cluster], gene) for (cluster, gene), count in cluster_counts.items() if cluster == max_gene_cluster and gene not in assigned_gene_set), default=(0, 'None'))[1]
+
+        # If max_gene is 'None', it means there are no more genes to assign
+        if max_gene == 'None':
+            break
+
+        # Assign this gene to the cluster
+        assigned_genes[max_gene_cluster] = max_gene
+
+        # Add this gene to the set of assigned genes
+        assigned_gene_set.add(max_gene)
+
+        # Remove this gene from all clusters
+        cluster_counts = {(cluster, gene): count for (cluster, gene), count in cluster_counts.items() if gene != max_gene}
+
+        # Remove the cluster from the dictionary
+        del cluster_totals[max_gene_cluster]
+
+    print("Assigned genes:", assigned_genes)
+    print("Cluster counts after gene assignment:", cluster_counts)
+
+    # Filter the clustering_data DataFrame to only include rows where the cluster and gene match the assigned genes
+    print("Clustering data before filtering:")
+    print(clustering_data)
+    clustering_data = clustering_data[clustering_data.apply(lambda row: row['gene'] == assigned_genes.get(row['cluster']), axis=1)]
+    print("Clustering data after filtering:")
+    print(clustering_data)
+
+    return assigned_genes, cluster_counts, clustering_data
+
+
+from sklearn.model_selection import train_test_split
+
+def evaluate_clusters(clustering_data, assigned_genes, kmeans_model, features):
+    # convert numpy array to pandas dataframe
+    clustering_data = pd.DataFrame(clustering_data, columns=['x', 'y', 'z', 'cluster', 'gene'])
+    # Generate a random holdout set of 100 data points
+    holdout_data = clustering_data.sample(n=100, random_state=42)
+
+    features_for_holdout = ['x', 'y', 'z']
+
+    # For each data point in the holdout set, assign it to the nearest cluster
+    holdout_clusters = kmeans_model.predict(holdout_data[features_for_holdout])
+
+    # Check if the gene of the data point matches the gene assigned to the cluster
+    matches = 0
+    mismatches = 0
+    for data_point, cluster in zip(holdout_data.itertuples(), holdout_clusters):
+        # check to make sure that the cluster exists in the assigned_genes dictionary
+        if cluster not in assigned_genes:
+            continue
+        if data_point.gene == assigned_genes[cluster]:
+            matches += 1
+        else:
+            mismatches += 1
+
+    print(f"Matches: {matches}")
+    print(f"Mismatches: {mismatches}")
+    print(f"Accuracy: {matches / (matches + mismatches)}")
+
+
 @app.route('/data_visualization', methods=['GET'])
 def data_visualization():
     df = pd.read_csv(CSV_FILE_PATH)
@@ -224,45 +304,14 @@ def data_visualization():
     # Get top 3 genes for each cluster after dynamic class balancing
     top_genes_after = []
     for cluster in sorted(df['cluster_after'].unique()):
-        top_genes = cluster_counts_after[cluster].nlargest(3).to_dict()
+        top_genes = cluster_counts_after[cluster].nlargest(23).to_dict()
         top_genes_after.append({'cluster': int(cluster), 'top3': top_genes})
 
-    # Define the size of the encoded representations
-    encoding_dim = 3  # Change this to whatever size you want
+   # Use t-SNE for dimensionality reduction
+    tsne = TSNE(n_components=3)
+    clustering_features = tsne.fit_transform(df[features])
 
-    # Define the number of features in your data
-    input_dim = len(features) + 1
-
-    # Define the input layer
-    input_layer = Input(shape=(input_dim,))
-
-    # Define the encoding layer
-    encoded = Dense(encoding_dim, activation='relu')(input_layer)
-
-    # Define the decoding layer
-    decoded = Dense(input_dim, activation='sigmoid')(encoded)
-
-    # Define the autoencoder model
-    autoencoder = Model(input_layer, decoded)
-
-    # Define the encoder model
-    encoder = Model(input_layer, encoded)
-
-    # Compile the autoencoder
-    autoencoder.compile(optimizer='adam', loss='binary_crossentropy')
-
-    # Normalize the data
-    processed_data_normalized = df[features + ['ethnicity']] / df[features + ['ethnicity']].max()
-
-    # Train the autoencoder
-    autoencoder.fit(processed_data_normalized, processed_data_normalized, epochs=50, batch_size=256, shuffle=True)
-
-    # Use the encoder to reduce the dimensionality of your data
-    clustering_features = encoder.predict(processed_data_normalized)
-
-    # Apply K-means clustering
-    kmeans = KMeans(n_clusters=23)  # Adjust the number of clusters as needed
-    clustering_labels = kmeans.fit_predict(clustering_features)
+    clustering_labels = kmeans_after.fit_predict(clustering_features)
 
     # Include gene information in the DataFrame from the start
     clustering_data = pd.DataFrame({
@@ -273,13 +322,37 @@ def data_visualization():
     'gene': df['gene'].values
     })
 
+    # Convert the Series to a dictionary for easier manipulation
+    cluster_counts_dict = cluster_counts_after.to_dict()
+
+    cluster_counts_dict_copy = cluster_counts_dict.copy()
+
+    clustering_data_copy = clustering_data.copy()
+
+    # Create a count of each gene in each cluster
+    cluster_counts_dict = defaultdict(int)
+    for cluster, gene in zip(clustering_data_copy['cluster'], clustering_data_copy['gene']):
+        cluster_counts_dict[(cluster, gene)] += 1
+
+
+
+    # Assign one gene to each cluster
+    assigned_genes, cluster_counts_after, clustering_data = assign_genes_to_clusters(cluster_counts_dict, clustering_data)
+
     # Calculate gene percentages in each cluster after applying the autoencoder and K-means clustering
     cluster_counts_after = clustering_data.groupby('cluster')['gene'].value_counts(normalize=True)
+
+    # Call the function after line 309
+    evaluate_clusters(clustering_data_copy, assigned_genes, kmeans_after, features)
 
     # Get top 3 genes for each cluster after applying the autoencoder and K-means clustering
     top_genes_after_encoding = []
     for cluster in sorted(clustering_data['cluster'].unique()):
-        top_genes = cluster_counts_after[cluster].nlargest(3).to_dict()
+        # Get counts for this cluster
+        cluster_counts = {gene: count for (cluster_key, gene), count in cluster_counts_dict.items() if cluster_key == cluster}
+        # Convert to a Series for nlargest
+        cluster_counts_series = pd.Series(cluster_counts)
+        top_genes = cluster_counts_series.nlargest(3).to_dict()
         top_genes_after_encoding.append({'cluster': int(cluster), 'top3': top_genes})
 
     # Create a dictionary of genes in each cluster
