@@ -1,0 +1,53 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <inspection_tool class="Eslint" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="PyPackageRequirementsInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredPackages">
+        <value>
+          <list size="21">
+            <item index="0" class="java.lang.String" itemvalue="opencv-contrib-python-headless" />
+            <item index="1" class="java.lang.String" itemvalue="face-recognition-models" />
+            <item index="2" class="java.lang.String" itemvalue="flatbuffers" />
+            <item index="3" class="java.lang.String" itemvalue="face-recognition" />
+            <item index="4" class="java.lang.String" itemvalue="google-api-python-client" />
+            <item index="5" class="java.lang.String" itemvalue="numpy" />
+            <item index="6" class="java.lang.String" itemvalue="dlib" />
+            <item index="7" class="java.lang.String" itemvalue="google-auth" />
+            <item index="8" class="java.lang.String" itemvalue="absl-py" />
+            <item index="9" class="java.lang.String" itemvalue="firebase-admin" />
+            <item index="10" class="java.lang.String" itemvalue="google-auth-oauthlib" />
+            <item index="11" class="java.lang.String" itemvalue="google-cloud-storage" />
+            <item index="12" class="java.lang.String" itemvalue="requests-oauthlib" />
+            <item index="13" class="java.lang.String" itemvalue="google-resumable-media" />
+            <item index="14" class="java.lang.String" itemvalue="oauthlib" />
+            <item index="15" class="java.lang.String" itemvalue="cachetools" />
+            <item index="16" class="java.lang.String" itemvalue="google-auth-httplib2" />
+            <item index="17" class="java.lang.String" itemvalue="grpcio-status" />
+            <item index="18" class="java.lang.String" itemvalue="grpcio" />
+            <item index="19" class="java.lang.String" itemvalue="google-cloud-firestore" />
+            <item index="20" class="java.lang.String" itemvalue="google-api-core" />
+          </list>
+        </value>
+      </option>
+    </inspection_tool>
+    <inspection_tool class="PyPep8NamingInspection" enabled="true" level="WEAK WARNING" enabled_by_default="true">
+      <option name="ignoredErrors">
+        <list>
+          <option value="N802" />
+          <option value="N806" />
+          <option value="N803" />
+        </list>
+      </option>
+    </inspection_tool>
+    <inspection_tool class="PyUnresolvedReferencesInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredIdentifiers">
+        <list>
+          <option value="float.time" />
+          <option value="bool.any" />
+        </list>
+      </option>
+    </inspection_tool>
+    <inspection_tool class="Stylelint" enabled="true" level="ERROR" enabled_by_default="true" />
+  </profile>
+</component>

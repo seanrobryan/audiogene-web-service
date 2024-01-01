@@ -3,7 +3,8 @@ import numpy as np
 from icecream import ic
 from sklearn.model_selection import GridSearchCV
 from sklearn.metrics import accuracy_score, precision_score, make_scorer, roc_auc_score, top_k_accuracy_score
-from utils import filter, sample
+from utils import filter
+from src.models.ensemble import _PartitionedEnsembleHelper
 
 def train_ensemble(df: pd.DataFrame, feature_cols: list, target: str, sampling_thresholds: dict,
                    ensemble: dict, search_params: dict, k_folds = 10,
@@ -20,13 +21,17 @@ def train_ensemble(df: pd.DataFrame, feature_cols: list, target: str, sampling_t
     for type_ in model_types:
         print(f"Training {type_[0].upper()} models")
 
-        model_keys = sorted([key for key in ensemble.keys() if type_[0] in key.split('_')[0]])
-        
+        model_keys = sorted([key for key, _ in ensemble if type_[0] in key.split('_')[0]])
+        print([key for key, _ in ensemble])
+        print([type_[0] for type_ in model_types])
         groups = sorted(df[type_[1]].unique())
         
         if type_[0] == 'shape':
             df = df.copy()
-            df = sample.resampling(df, sampling_thresholds)
+            X = df[feature_cols]
+            y = df[target]
+            X, y = _PartitionedEnsembleHelper.resampling(df, sampling_thresholds)
+            df = pd.concat([X, y], axis=1)
             df = df.reset_index().drop(columns='index')
             df['id_num'] = df.index
             
@@ -35,7 +40,7 @@ def train_ensemble(df: pd.DataFrame, feature_cols: list, target: str, sampling_t
         keys_to_cat = dict((v, k) for v, k in zip(model_keys, groups))
         
         for mk in model_keys:
-            cur_clf = ensemble[mk]
+            cur_clf = [step[1] for step in ensemble[mk].steps if step[0] == 'algorithm'][0]
             
             print(f'\n{mk}\n')
             

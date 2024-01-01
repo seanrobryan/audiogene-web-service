@@ -65,7 +65,7 @@ services:
       - $SHARED_DATA:/$SHARED_DATA
       - /var/run/docker.sock:/var/run/docker.sock
     ports:
-      - $API_CONTAINER_EXTERNAL_PORT:$API_INTERNAL_PORT
+      - $API_EXTERNAL_PORT:$API_INTERNAL_PORT
     networks:
       - audiogene-network
 volumes:

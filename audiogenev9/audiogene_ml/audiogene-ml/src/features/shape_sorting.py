@@ -48,7 +48,7 @@ def calc_mean_loss_per_locus_by_age(df: DataFrame):
         if col not in df.columns:
             non_freq_cols.remove(col)
     df = df.drop(labels=non_freq_cols, axis=1)
-    df = df.groupby(['locus', 'age_group']).mean()
+    df = df.groupby(['gene', 'age_group']).mean()
     df.columns = df.columns.str.replace('dB', '')
     return df
 

@@ -27,4 +27,5 @@ websocket-client==1.6.3
 Werkzeug==2.2.3
 zipp==3.15.0
 xlrd==2.0.1
+openpyxl==3.0.9
 
