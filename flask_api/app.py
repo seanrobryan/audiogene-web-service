@@ -18,6 +18,8 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.manifold import TSNE
 from hdbscan import HDBSCAN
 from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import StratifiedKFold
+
 
 app = Flask(__name__)
 
@@ -30,12 +32,13 @@ path = os.path.dirname(os.path.abspath(__file__))
 shared_path = SHARED_DIR
 
 # CSV_FILE_PATH = 'ag_9_full_dataset_processed_with_var.csv'
-CSV_FILE_PATH = os.path.join(path, 'ag_9_full_dataset_processed_with_var.csv')
+CSV_FILE_PATH = os.path.join(path, 'ag_9_full_dataset_processed_test_no_added_data.csv')
 
 GENES = ['ACTG1', 'CCDC50', 'CEACAM16', 'COCH', 'COL11A2', 'EYA4', 'DIAPH1',
          'GJB2', 'GRHL2', 'GSDME', 'KCNQ4', 'MIRN96', 'MYH14', 'MYH9', 'MYO6',
          'MYO7A', 'P2RX2', 'POU4F3', 'REST', 'SLC17A8', 'TECTA', 'TMC1', 'WFS1']
 age_groups = [(0, 20), (20, 40), (40, 60), (60, 80), (80, float('inf'))]
+
 
 @app.route('/')
 def index():
@@ -86,10 +89,11 @@ def remove_outliers_zscore_per_age_group_and_gene(df, threshold=3, underrepresen
 def dynamic_class_balancing(df, feature_columns, target_column, label_encoder_gene, label_encoder_ethnicity):
     # Define the target and features
     target = df['gene']
-    features = df.drop(['gene', 'patient_id_family_id'], axis=1)
-
+    feature_columns = feature_columns + ['ethnicity']
+    features = df[feature_columns]
+    feature_columns = feature_columns[:-1]
     # Create a unique key for each original sample by summing up the frequency labels and appending the gene
-    df['unique_key'] = df[feature_columns].sum(axis=1).astype(str) + '_' + df['gene']
+    df['unique_key'] = df[feature_columns].sum(axis=1).astype(str) + '_' + df['gene'].astype(str)
     original_keys = df['unique_key'].values
     original_patient_id_mapping = df.set_index('unique_key')['patient_id_family_id'].to_dict()
 
@@ -168,12 +172,20 @@ def assign_genes_to_clusters(cluster_counts, clustering_data):
 
     # Initialize a set to store the genes that have been assigned
     assigned_gene_set = set()
-
     # While there are still clusters left and we haven't assigned 23 genes yet
     while cluster_counts and len(assigned_genes) < 23:
         # Find the cluster with the highest count for its most prevalent gene
-        max_gene_cluster = max(cluster_totals.keys(), key=lambda x: max(((count / cluster_totals[x], gene) for (cluster, gene), count in cluster_counts.items() if cluster == x and gene not in assigned_gene_set), default=(0, 'None'))[1])
-        max_gene = max(((count / cluster_totals[max_gene_cluster], gene) for (cluster, gene), count in cluster_counts.items() if cluster == max_gene_cluster and gene not in assigned_gene_set), default=(0, 'None'))[1]
+        max_gene_cluster = None
+        max_gene = 'None'
+        for cluster in cluster_totals.keys():
+            if cluster_totals[cluster] == 0:  # Skip clusters that don't contain any genes
+                continue
+            cluster_genes = [(count / cluster_totals[cluster], gene) for (c, gene), count in cluster_counts.items() if c == cluster and gene not in assigned_gene_set]
+            if cluster_genes:
+                current_max_gene = max(cluster_genes)[1]
+                if max_gene_cluster is None or current_max_gene > max_gene:
+                    max_gene_cluster = cluster
+                    max_gene = current_max_gene
 
         # If max_gene is 'None', it means there are no more genes to assign
         if max_gene == 'None':
@@ -186,52 +198,76 @@ def assign_genes_to_clusters(cluster_counts, clustering_data):
         assigned_gene_set.add(max_gene)
 
         # Remove this gene from all clusters
-        cluster_counts = {(cluster, gene): count for (cluster, gene), count in cluster_counts.items() if gene != max_gene}
+        cluster_counts = {(c, gene): count for (c, gene), count in cluster_counts.items() if gene != max_gene}
 
         # Remove the cluster from the dictionary
         del cluster_totals[max_gene_cluster]
 
-    print("Assigned genes:", assigned_genes)
-    print("Cluster counts after gene assignment:", cluster_counts)
-
     # Filter the clustering_data DataFrame to only include rows where the cluster and gene match the assigned genes
-    print("Clustering data before filtering:")
-    print(clustering_data)
     clustering_data = clustering_data[clustering_data.apply(lambda row: row['gene'] == assigned_genes.get(row['cluster']), axis=1)]
-    print("Clustering data after filtering:")
-    print(clustering_data)
 
     return assigned_genes, cluster_counts, clustering_data
 
 
-from sklearn.model_selection import train_test_split
+def count_genes_in_clusters(data):
+    # Create a count of each gene in each cluster
+    cluster_counts = defaultdict(int)
+    for cluster, gene in zip(data['cluster'], data['gene']):
+        cluster_counts[(cluster, gene)] += 1
+    return cluster_counts
 
-def evaluate_clusters(clustering_data, assigned_genes, kmeans_model, features):
-    # convert numpy array to pandas dataframe
-    clustering_data = pd.DataFrame(clustering_data, columns=['x', 'y', 'z', 'cluster', 'gene'])
-    # Generate a random holdout set of 100 data points
-    holdout_data = clustering_data.sample(n=100, random_state=42)
+def cross_validate_clusters(clustering_features, df, n_clusters=23, n_splits=3):
+    # Initialize the StratifiedKFold object
+    skf = StratifiedKFold(n_splits=n_splits)
 
-    features_for_holdout = ['x', 'y', 'z']
-
-    # For each data point in the holdout set, assign it to the nearest cluster
-    holdout_clusters = kmeans_model.predict(holdout_data[features_for_holdout])
-
-    # Check if the gene of the data point matches the gene assigned to the cluster
     matches = 0
     mismatches = 0
-    for data_point, cluster in zip(holdout_data.itertuples(), holdout_clusters):
-        # check to make sure that the cluster exists in the assigned_genes dictionary
-        if cluster not in assigned_genes:
-            continue
-        if data_point.gene == assigned_genes[cluster]:
-            matches += 1
-        else:
-            mismatches += 1
 
-    print(f"Matches: {matches}")
-    print(f"Mismatches: {mismatches}")
-    print(f"Accuracy: {matches / (matches + mismatches)}")
+    # For each fold, train on the remaining folds and test on the current fold
+    for train_index, test_index in skf.split(clustering_features, df['gene']):
+        # Split the data into a training set and a test set
+        train_features = clustering_features[train_index]
+        test_features = clustering_features[test_index]
+
+        # Train the KMeans model on the training data
+        kmeans_model = KMeans(n_clusters=n_clusters, random_state=0, n_init=100, max_iter=1000)
+        kmeans_model.fit(train_features)
+
+        # Create the clustering data for the training set
+        train_data = pd.DataFrame({
+            'x': train_features[:, 0],
+            'y': train_features[:, 1],
+            'z': train_features[:, 2],
+            'cluster': kmeans_model.labels_,
+            'gene': df.iloc[train_index]['gene'].values
+        })
+
+        # Use the training data to create the clusters and assign the genes
+        cluster_counts_train = count_genes_in_clusters(train_data)
+        assigned_genes, _, _ = assign_genes_to_clusters(cluster_counts_train, train_data)
+
+        # For each data point in the test set, assign it to the nearest cluster
+        test_clusters = kmeans_model.predict(test_features)
+
+        # Create the clustering data for the test set
+        test_data = pd.DataFrame({
+            'x': test_features[:, 0],
+            'y': test_features[:, 1],
+            'z': test_features[:, 2],
+            'cluster': test_clusters,
+            'gene': df.iloc[test_index]['gene'].values
+        })
+
+        # Check if the gene of the data point matches the gene assigned to the cluster
+        for data_point, cluster in zip(test_data.itertuples(), test_clusters):
+            if data_point.gene == assigned_genes.get(cluster):
+                matches += 1
+            else:
+                mismatches += 1
+
+        print(f"Matches: {matches}")
+        print(f"Mismatches: {mismatches}")
+        print(f"Accuracy: {matches / (matches + mismatches)}")
 
 
 @app.route('/data_visualization', methods=['GET'])
@@ -334,16 +370,18 @@ def data_visualization():
     for cluster, gene in zip(clustering_data_copy['cluster'], clustering_data_copy['gene']):
         cluster_counts_dict[(cluster, gene)] += 1
 
-
-
     # Assign one gene to each cluster
     assigned_genes, cluster_counts_after, clustering_data = assign_genes_to_clusters(cluster_counts_dict, clustering_data)
+
+    # see which genes are not present after assigning genes to clusters
+    genes_not_present = set(GENES) - set(assigned_genes.values())
+
+    print("Genes not present: ", genes_not_present)
 
     # Calculate gene percentages in each cluster after applying the autoencoder and K-means clustering
     cluster_counts_after = clustering_data.groupby('cluster')['gene'].value_counts(normalize=True)
 
-    # Call the function after line 309
-    evaluate_clusters(clustering_data_copy, assigned_genes, kmeans_after, features)
+    cross_validate_clusters(clustering_features, df, n_clusters=23, n_splits=3)
 
     # Get top 3 genes for each cluster after applying the autoencoder and K-means clustering
     top_genes_after_encoding = []
