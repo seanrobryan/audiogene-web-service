@@ -230,7 +230,7 @@ def cross_validate_clusters(clustering_features, df, n_clusters=23, n_splits=3):
         test_features = clustering_features[test_index]
 
         # Train the KMeans model on the training data
-        kmeans_model = KMeans(n_clusters=n_clusters, random_state=0, n_init=100, max_iter=1000)
+        kmeans_model = KMeans(n_clusters=n_clusters, random_state=0, n_init='auto', max_iter=1000)
         kmeans_model.fit(train_features)
 
         # Create the clustering data for the training set
@@ -315,7 +315,7 @@ def data_visualization():
     processed_data['ethnicity_encoded'] = label_encoder_ethnicity.fit_transform(processed_data['ethnicity'])
 
     # Apply K-means before dynamic class balancing
-    kmeans_before = KMeans(n_clusters=23)  # Adjust the number of clusters as needed
+    kmeans_before = KMeans(n_clusters=23,n_init='auto', max_iter=1000)  # Adjust the number of clusters as needed
     processed_data['cluster_before'] = kmeans_before.fit_predict(processed_data[features])
 
     # Calculate gene percentages in each cluster before dynamic class balancing
@@ -331,7 +331,7 @@ def data_visualization():
     df, label_encoder_gene, label_encoder_ethnicity = dynamic_class_balancing(df, features, target, label_encoder_gene, label_encoder_ethnicity)
 
     # Apply K-means after dynamic class balancing
-    kmeans_after = KMeans(n_clusters=23)  # Adjust the number of clusters as needed
+    kmeans_after = KMeans(n_clusters=23, n_init='auto', max_iter=1000)  # Adjust the number of clusters as needed
     df['cluster_after'] = kmeans_after.fit_predict(df[features])
 
     # Calculate gene percentages in each cluster after dynamic class balancing
