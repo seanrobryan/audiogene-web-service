@@ -10,13 +10,10 @@ import subprocess
 import os
 import docker
 import logging
-from keras.layers import Input, Dense
-from keras.models import Model
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import LabelEncoder
 from sklearn.manifold import TSNE
-from hdbscan import HDBSCAN
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import StratifiedKFold
 
@@ -25,6 +22,8 @@ app = Flask(__name__)
 
 # docker_client = docker.from_env()
 SHARED_DIR = '/' + 'shared_data'
+
+docker_client = docker.from_env()
 
 # Get the directory for this file
 path = os.path.dirname(os.path.abspath(__file__))
@@ -465,164 +464,164 @@ def data_visualization():
 
     return jsonify(visualization_data)
 
-# @app.route('/predict/audiogenev4', methods=['POST'])
-# def predict_audiogenev4():
-#     try:
-#         # Check if a file was uploaded
-#         if 'dataFile' not in request.files:
-#             return jsonify({'error': 'No file uploaded'}), 400
-#
-#         file = request.files['dataFile']
-#
-#         # Check if the file is empty
-#         file.seek(0, os.SEEK_END)
-#         size = file.tell()
-#         file.seek(0)
-#         if size == 0:
-#             return jsonify({'error': 'Uploaded file is empty'}), 400
-#
-#         # Save the uploaded file to a temporary location
-#         filepath = os.path.join(shared_path, file.filename)
-#         try:
-#             file.save(filepath)
-#         except Exception as e:
-#             print(f"Error saving file: {e}")
-#             return jsonify({'error': f'Error saving file: {e}'}), 500
-#
-#         base_service = '/audiogene-web-service-'
-#         file_path = os.path.splitext(filepath)[0]
-#
-#         # Get convert the input file to a csv
-#         csv_file_path = f"{file_path}.csv"
-#         print("csv file path: ", csv_file_path)
-#         container = get_container_by_name(docker_client, base_service + 'xlstocsv-1')
-#         cmd = f'java -jar ConvertToXLS2CSV.jar {filepath} {csv_file_path}'
-#         # convert xls to csv using python
-#         # import pandas as pd
-#         # data_xls = pd.read_excel(filepath, index_col=None)
-#         # data_xls.to_csv(csv_file_path, encoding='utf-8', index=False)
-#         container.exec_run(cmd)
-#
-#         # Apply perl preprocessing
-#         post_processing_path = f"{file_path}_processed.out"
-#         container = get_container_by_name(docker_client, base_service + 'perl_preprocessor-1')
-#         cmd = f'perl weka-preprocessor.perl -i -a -poly=3 {csv_file_path} > {post_processing_path}'
-#         res = container.exec_run(cmd).output
-#         with open(post_processing_path, 'wb') as f:
-#             f.write(res)
-#
-#         # Send processed file to the classifier
-#         predictions_path = f"{file_path}_predictions.csv"
-#         container = get_container_by_name(docker_client, base_service + 'audiogenev4-1')
-#         cmd = f'java -jar -Xmx2G AudioGene.jar {post_processing_path} audiogene.misvm.model > {predictions_path}'
-#         res = container.exec_run(cmd).output
-#
-#         # Save predictions to a file
-#         with open(predictions_path, 'wb') as f:
-#             f.write(res.replace(b'\t', b','))  # Replace the sporadic tab seperation with comma seperation
-#
-#         # Read the first line of the file
-#         with open(predictions_path, 'r') as f:
-#             first_line = f.readline().strip()
-#
-#         # Check if the first line contains 'ID' followed by a number
-#         import re
-#         if re.match(r'ID \d+', first_line):
-#             # If it does, read the file without a header
-#             data = pd.read_csv(predictions_path, header=None)
-#         else:
-#             # Otherwise, read the file normally
-#             data = pd.read_csv(predictions_path)
-#
-#         # Rename the columns
-#         print("Data read from csv file after predictions: ", data)
-#         data.columns = [x for x in range(1, data.shape[1] + 1)]
-#         print("Data after column renaming: ", data)
-#
-#         outputFormat = request.form.get('format', 'json')
-#         # Return the result in the desired format
-#         if outputFormat == 'json':
-#             print("returning json: {}".format(data.to_dict(orient='index')))
-#             return jsonify(data.to_dict(orient='index')), 200
-#         elif outputFormat == 'csv':
-#             csv_data = data.to_csv(index=False)
-#             return csv_data, 200, {'Content-Type': 'text/csv'}
-#         else:
-#             return jsonify({'error': 'Unsupported output format'}), 400
-#     except Exception as e:
-#         print(e)
-#         return jsonify({'error': f'Error predicting{e}'}), 500
-#
-#
-# @app.route('/predict/audiogenev9', methods=['POST'])
-# def predict_audiogenev9():
-#     try:
-#         print('predicting audigenev9')
-#         logging.info('predicting audigenev9')
-#         # Check if a file was uploaded
-#         if 'dataFile' not in request.files:
-#             return jsonify({'error': 'No file uploaded'}), 400
-#
-#         file = request.files['dataFile']
-#         print(file)
-#
-#         # Check if the file is empty
-#         file.seek(0, os.SEEK_END)
-#         size = file.tell()
-#         file.seek(0)
-#         if size == 0:
-#             return jsonify({'error': 'Uploaded file is empty'}), 400
-#
-#         # Save the uploaded file to a temporary location
-#         # filepath = os.path.join(SHARED_DIR, file.filename)
-#         filepath = os.path.join(shared_path, file.filename)
-#         # check if shared dir exists if not create it
-#         if not os.path.exists(shared_path):
-#             os.makedirs(shared_path)
-#         try:
-#             file.save(filepath)
-#         except Exception as e:
-#             print(f"Error saving file: {e}")
-#             return jsonify({'error': f'Error saving file to share_dir: {e}'}), 404
-#
-#         base_service = '/audiogene-web-service-'
-#         file_path = os.path.splitext(filepath)[0]
-#
-#         o = os.path.join(shared_path, 'ag9_output.csv')
-#         # Save the output to a temporary location
-#         # Create an empty csv file
-#         open(o, 'a').close()
-#
-#         m = './audiogene_ml/audiogene-ml/notebooks/saved_models/cur_model_lv3_compression.joblib'
-#         i = filepath
-#
-#         cmd = f'python -u ./audiogene_ml/audiogene-ml/predict.py -i {i} -o {o} -m {m}'
-#         print("running command: ", cmd)
-#         container = get_container_by_name(docker_client, base_service + 'audiogenev9-1')
-#         container.exec_run(cmd)
-#
-#         print("finished running command")
-#
-#         # Read the result using pandas
-#         data = pd.read_csv(o, index_col=0)
-#
-#         print(data)
-#
-#         outputFormat = request.form.get('format', 'json')
-#         # Return the result in the desired format
-#         if outputFormat == 'json':
-#             print("returning json")
-#             return jsonify(data.to_dict(orient='index')), 200
-#         elif outputFormat == 'csv':
-#             print("returning csv")
-#             csv_data = data.to_csv(index=False)
-#             return csv_data, 200, {'Content-Type': 'text/csv'}
-#         else:
-#             print("returning error")
-#             return jsonify({'error': 'Unsupported output format'}), 400
-#     except Exception as e:
-#         print(e)
-#         return jsonify({'error': f'Error predicting{e}'}), 500
+@app.route('/predict/audiogenev4', methods=['POST'])
+def predict_audiogenev4():
+    try:
+        # Check if a file was uploaded
+        if 'dataFile' not in request.files:
+            return jsonify({'error': 'No file uploaded'}), 400
+
+        file = request.files['dataFile']
+
+        # Check if the file is empty
+        file.seek(0, os.SEEK_END)
+        size = file.tell()
+        file.seek(0)
+        if size == 0:
+            return jsonify({'error': 'Uploaded file is empty'}), 400
+
+        # Save the uploaded file to a temporary location
+        filepath = os.path.join(shared_path, file.filename)
+        try:
+            file.save(filepath)
+        except Exception as e:
+            print(f"Error saving file: {e}")
+            return jsonify({'error': f'Error saving file: {e}'}), 500
+
+        base_service = '/audiogene-web-service-'
+        file_path = os.path.splitext(filepath)[0]
+
+        # Get convert the input file to a csv
+        csv_file_path = f"{file_path}.csv"
+        print("csv file path: ", csv_file_path)
+        container = get_container_by_name(docker_client, base_service + 'xlstocsv-1')
+        cmd = f'java -jar ConvertToXLS2CSV.jar {filepath} {csv_file_path}'
+        # convert xls to csv using python
+        # import pandas as pd
+        # data_xls = pd.read_excel(filepath, index_col=None)
+        # data_xls.to_csv(csv_file_path, encoding='utf-8', index=False)
+        container.exec_run(cmd)
+
+        # Apply perl preprocessing
+        post_processing_path = f"{file_path}_processed.out"
+        container = get_container_by_name(docker_client, base_service + 'perl_preprocessor-1')
+        cmd = f'perl weka-preprocessor.perl -i -a -poly=3 {csv_file_path} > {post_processing_path}'
+        res = container.exec_run(cmd).output
+        with open(post_processing_path, 'wb') as f:
+            f.write(res)
+
+        # Send processed file to the classifier
+        predictions_path = f"{file_path}_predictions.csv"
+        container = get_container_by_name(docker_client, base_service + 'audiogenev4-1')
+        cmd = f'java -jar -Xmx2G AudioGene.jar {post_processing_path} audiogene.misvm.model > {predictions_path}'
+        res = container.exec_run(cmd).output
+
+        # Save predictions to a file
+        with open(predictions_path, 'wb') as f:
+            f.write(res.replace(b'\t', b','))  # Replace the sporadic tab seperation with comma seperation
+
+        # Read the first line of the file
+        with open(predictions_path, 'r') as f:
+            first_line = f.readline().strip()
+
+        # Check if the first line contains 'ID' followed by a number
+        import re
+        if re.match(r'ID \d+', first_line):
+            # If it does, read the file without a header
+            data = pd.read_csv(predictions_path, header=None)
+        else:
+            # Otherwise, read the file normally
+            data = pd.read_csv(predictions_path)
+
+        # Rename the columns
+        print("Data read from csv file after predictions: ", data)
+        data.columns = [x for x in range(1, data.shape[1] + 1)]
+        print("Data after column renaming: ", data)
+
+        outputFormat = request.form.get('format', 'json')
+        # Return the result in the desired format
+        if outputFormat == 'json':
+            print("returning json: {}".format(data.to_dict(orient='index')))
+            return jsonify(data.to_dict(orient='index')), 200
+        elif outputFormat == 'csv':
+            csv_data = data.to_csv(index=False)
+            return csv_data, 200, {'Content-Type': 'text/csv'}
+        else:
+            return jsonify({'error': 'Unsupported output format'}), 400
+    except Exception as e:
+        print(e)
+        return jsonify({'error': f'Error predicting{e}'}), 500
+
+
+@app.route('/predict/audiogenev9', methods=['POST'])
+def predict_audiogenev9():
+    try:
+        print('predicting audigenev9')
+        logging.info('predicting audigenev9')
+        # Check if a file was uploaded
+        if 'dataFile' not in request.files:
+            return jsonify({'error': 'No file uploaded'}), 400
+
+        file = request.files['dataFile']
+        print(file)
+
+        # Check if the file is empty
+        file.seek(0, os.SEEK_END)
+        size = file.tell()
+        file.seek(0)
+        if size == 0:
+            return jsonify({'error': 'Uploaded file is empty'}), 400
+
+        # Save the uploaded file to a temporary location
+        # filepath = os.path.join(SHARED_DIR, file.filename)
+        filepath = os.path.join(shared_path, file.filename)
+        # check if shared dir exists if not create it
+        if not os.path.exists(shared_path):
+            os.makedirs(shared_path)
+        try:
+            file.save(filepath)
+        except Exception as e:
+            print(f"Error saving file: {e}")
+            return jsonify({'error': f'Error saving file to share_dir: {e}'}), 404
+
+        base_service = '/audiogene-web-service-'
+        file_path = os.path.splitext(filepath)[0]
+
+        o = os.path.join(shared_path, 'ag9_output.csv')
+        # Save the output to a temporary location
+        # Create an empty csv file
+        open(o, 'a').close()
+
+        m = './audiogene_ml/audiogene-ml/notebooks/saved_models/cur_model_lv3_compression.joblib'
+        i = filepath
+
+        cmd = f'python -u ./audiogene_ml/audiogene-ml/predict.py -i {i} -o {o} -m {m}'
+        print("running command: ", cmd)
+        container = get_container_by_name(docker_client, base_service + 'audiogenev9-1')
+        container.exec_run(cmd)
+
+        print("finished running command")
+
+        # Read the result using pandas
+        data = pd.read_csv(o, index_col=0)
+
+        print(data)
+
+        outputFormat = request.form.get('format', 'json')
+        # Return the result in the desired format
+        if outputFormat == 'json':
+            print("returning json")
+            return jsonify(data.to_dict(orient='index')), 200
+        elif outputFormat == 'csv':
+            print("returning csv")
+            csv_data = data.to_csv(index=False)
+            return csv_data, 200, {'Content-Type': 'text/csv'}
+        else:
+            print("returning error")
+            return jsonify({'error': 'Unsupported output format'}), 400
+    except Exception as e:
+        print(e)
+        return jsonify({'error': f'Error predicting{e}'}), 500
 
 
 def get_container_by_name(client: docker.client.DockerClient, name: str) -> docker.models.containers.Container:
@@ -639,5 +638,5 @@ def get_container_by_name(client: docker.client.DockerClient, name: str) -> dock
 # __name__ will be 'app' when executing from the container
 if __name__ == '__main__':
     # app.run(host='127.0.0.1', port=5000, debug=True)
-    app.run(host='0.0.0.0', port=5001, debug=True, use_reloader=False)
-    # app.run(host=api_host, port=internal_api_port, debug=True)
+    # app.run(host='0.0.0.0', port=5001, debug=True, use_reloader=False)
+    app.run(host='0.0.0.0', port=os.getenv('API_INTERNAL_PORT', 5001), debug=True)
