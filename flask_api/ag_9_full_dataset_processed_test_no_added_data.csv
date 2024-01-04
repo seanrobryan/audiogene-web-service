@@ -1,4 +1,4 @@
-fix,id,age,125 dB,250 dB,500 dB,1000 dB,1500 dB,2000 dB,3000 dB,4000 dB,6000 dB,8000 dB,new_id,family_id,author,ethnicity,patient_id,patient_id_family_id,gene
+index,id,age,125 dB,250 dB,500 dB,1000 dB,1500 dB,2000 dB,3000 dB,4000 dB,6000 dB,8000 dB,new_id,family_id,author,ethnicity,patient_id,patient_id_family_id,gene
 0,DFNA1 Kindred M S11y,11.0,67.5,65.0,60.0,50.0,44.33332,40.0,33.33335417,30.0,33.33333333,50.0,Kindred M S11y,Kindred M NA NA,NA,NA,S11y,S11y Kindred M NA NA,DIAPH1
 1,DFNA1 Kindred M S14y,14.0,66.88019967,70.0,70.0,45.0,33.2757432,25.0,14.9138349,10.0,10.00010547,25.0,Kindred M S14y,Kindred M NA NA,NA,NA,S14y,S14y Kindred M NA NA,DIAPH1
 2,DFNA1 Kindred M S18y,18.0,89.37537493,85.0,80.0,85.0,82.5,80.0,79.62963032,80.0,81.66666623,85.0,Kindred M S18y,Kindred M NA NA,NA,NA,S18y,S18y Kindred M NA NA,DIAPH1
