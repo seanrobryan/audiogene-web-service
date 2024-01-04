@@ -91,7 +91,7 @@ def remove_outliers_zscore_per_age_group_and_gene(df, threshold=3, underrepresen
     return cleaned_df
 
 
-def dynamic_class_balancing(df, feature_columns, target_column, label_encoder_gene, label_encoder_ethnicity):
+def dynamic_class_balancing(df, feature_columns, target_column, label_encoder_gene, label_encoder_ethnicity, underrepresented_threshold=40, overrepresented_threshold=250):
     # Define the target and features
     target = df['gene']
     feature_columns = feature_columns + ['ethnicity_encoded']
@@ -110,8 +110,8 @@ def dynamic_class_balancing(df, feature_columns, target_column, label_encoder_ge
 
     # Define dynamic sampling strategy for SMOTE and NearMiss
     class_counts = np.bincount(y_encoded)
-    smote_strategy = {i: 50 for i, count in enumerate(class_counts) if count < 50}
-    nm_strategy = {i: 50 for i, count in enumerate(class_counts) if count > 50}
+    smote_strategy = {i: underrepresented_threshold for i, count in enumerate(class_counts) if count < underrepresented_threshold}
+    nm_strategy = {i: overrepresented_threshold for i, count in enumerate(class_counts) if count > overrepresented_threshold}
 
     # Apply SMOTE for oversampling and NearMiss for undersampling
     smote = SMOTE(sampling_strategy=smote_strategy, k_neighbors=2)
@@ -195,10 +195,10 @@ def dynamic_class_balancing(df, feature_columns, target_column, label_encoder_ge
     csv_file_path = os.path.join(path, 'original_and_removed_data.xlsx')
     # Save the original stats and removed stats to the same csv file but in separate sheets
     with pd.ExcelWriter(csv_file_path) as writer:
-        df.to_excel(writer, sheet_name='Original Stats')
-        removed_samples.to_excel(writer, sheet_name='Removed Stats')
+        df.to_excel(writer, sheet_name='Original Data')
+        removed_samples.to_excel(writer, sheet_name='Removed Data')
 
-    return df_resampled, le_gene, label_encoder_ethnicity, df, 
+    return df_resampled, le_gene, label_encoder_ethnicity
 
 
 def assign_genes_to_clusters(cluster_counts, clustering_data):
@@ -446,7 +446,7 @@ def data_visualization():
         top_genes_before.append({'cluster': int(cluster), 'top3': top_genes})
 
     # Use dynamic class balancing to balance the dataset
-    processed_data, label_encoder_gene, label_encoder_ethnicity, _, _ = dynamic_class_balancing(processed_data, features, target, label_encoder_gene, label_encoder_ethnicity)
+    processed_data, label_encoder_gene, label_encoder_ethnicity = dynamic_class_balancing(processed_data, features, target, label_encoder_gene, label_encoder_ethnicity)
 
     gene_counts_after_resampling = processed_data['gene'].value_counts()
 
@@ -524,6 +524,19 @@ def data_visualization():
     genes_not_present = set(GENES) - set(assigned_genes.values())
 
     print("Genes not present: ", genes_not_present)
+
+    # get the path of the current file
+    path = os.path.dirname(os.path.abspath(__file__))
+    # create the path to the csv file
+    csv_file_path = os.path.join(path, 'all_data.xlsx')
+
+    # Save the processed_data, clustering_data_copy, clustering_data, and clustering_features in an Excel file
+    with pd.ExcelWriter(csv_file_path) as writer:
+        processed_data.to_excel(writer, sheet_name='Data')
+        clustering_data_copy.to_excel(writer, sheet_name='Original_Clustering Data')
+        clustering_data.to_excel(writer, sheet_name='Assigned Genes to Clusters')
+        pd.DataFrame(clustering_features, columns=['x', 'y', 'z']).to_excel(writer, sheet_name='Reduced Dimensionality Data')
+
 
     # Calculate gene percentages in each cluster after applying the autoencoder and K-means clustering
     cluster_counts_after = clustering_data.groupby('cluster')['gene'].value_counts(normalize=True)
