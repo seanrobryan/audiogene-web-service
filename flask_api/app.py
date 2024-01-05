@@ -385,8 +385,15 @@ def dbscan_clustering_and_gene_assignment(data, eps=0.3, min_samples=3):
 
     return assigned_genes, clustering_data, all_genes_assigned
 
-@app.route('/data_visualization', methods=['GET'])
+@app.route('/data_visualization', methods=['POST'])
 def data_visualization():
+    # Get the data from the request
+    data = request.get_json()
+    # Parse the JSON data and convert it into a DataFrame
+    table_df = pd.json_normalize(data['data'])
+    table_df = table_df.drop(['ear'], axis=1)
+
+    print("The data: ", data)
     print("Starting data visualization")
     # request_data = request.get_json()
     # table_data = request_data['tableData']
@@ -408,6 +415,7 @@ def data_visualization():
 
     # Rename the columns
     df.rename(columns=column_mapping, inplace=True)
+    table_df.rename(columns=column_mapping, inplace=True)
 
     # remove outliers
     df = remove_outliers_zscore_per_age_group_and_gene(df)
@@ -425,6 +433,14 @@ def data_visualization():
             processed_data[column].fillna(processed_data[column].mean(), inplace=True)
         else:
             processed_data[column].fillna('NA', inplace=True)
+
+    # Convert the columns to numeric
+    for column in table_df.columns:
+        if 'Hz' in column or column == 'age':
+            table_df[column] = pd.to_numeric(table_df[column], errors='coerce')
+            table_df[column].fillna(df[column].mean(), inplace=True)
+
+
     df = processed_data.copy()
     # Encode the gene and ethnicity
     label_encoder_gene = LabelEncoder()
@@ -474,7 +490,11 @@ def data_visualization():
     pca = PCA(n_components=3)
     clustering_features = pca.fit_transform(processed_data[features])
 
+    table_df_features = pca.transform(table_df[features])
+
     clustering_labels = kmeans_after.fit_predict(clustering_features)
+
+    table_df_labels = kmeans_after.predict(table_df_features)
 
     # Include gene information in the DataFrame from the start
     clustering_data = pd.DataFrame({
@@ -484,6 +504,27 @@ def data_visualization():
     'cluster': clustering_labels,
     'gene': processed_data['gene'].values
     })
+
+    table_df_data = pd.DataFrame({
+        'id': table_df['id'].values,
+        'x': table_df_features[:, 0],
+        'y': table_df_features[:, 1],
+        'z': table_df_features[:, 2],
+        'cluster': table_df_labels,
+    })
+
+    # use dbscan to cluster the data
+    dbscan = DBSCAN(eps=0.3, min_samples=3)
+    clustering_labels_dbscan = dbscan.fit_predict(clustering_features)
+
+    clustering_data_dbscan = pd.DataFrame({
+        'x': clustering_features[:, 0],
+        'y': clustering_features[:, 1],
+        'z': clustering_features[:, 2],
+        'cluster': clustering_labels_dbscan,
+        'gene': processed_data['gene'].values
+    })
+
 
     # Convert the Series to a dictionary for easier manipulation
     cluster_counts_dict = cluster_counts_after.to_dict()
@@ -613,7 +654,9 @@ def data_visualization():
     visualization_data = {
         'heatmapData': heatmap_data,
         'uniqueGenesInClusters': unique_genes_in_clusters,
-        'clusteringData': clustering_data.to_dict(orient='records'),
+        'clusteringDataGreedy': clustering_data.to_dict(orient='records'),
+        'clusteringDataOriginal': clustering_data_copy.to_dict(orient='records'),
+        'clusteringDataOptimized': clustering_data_dbscan.to_dict(orient='records'),
         'scatterData': scatter_data.to_dict(orient='records'),
         'ageData': processed_data['age'].tolist(),
         'geneExpressionData': gene_expression_data.to_dict(orient='records'),
@@ -627,6 +670,7 @@ def data_visualization():
         'top_genes_after_encoding': top_genes_after_encoding,
         'geneCounts': gene_counts_dict,
         'geneCountsAfterResampling': gene_counts_after_resampling_dict,
+        'table_df_data': table_df_data.to_dict(orient='records'),
     }
 
     print("Completed data visualization")
