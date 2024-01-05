@@ -1,4 +1,0 @@
-FROM openjdk:8
-WORKDIR /app
-ADD ConvertToXLS2CSV.jar ConvertToXLS2CSV.jar
-EXPOSE $XLS_TO_CSV_PORT
