@@ -388,6 +388,8 @@ def dbscan_clustering_and_gene_assignment(data, eps=0.3, min_samples=3):
 @app.route('/data_visualization', methods=['GET'])
 def data_visualization():
     print("Starting data visualization")
+    # request_data = request.get_json()
+    # table_data = request_data['tableData']
     df = pd.read_csv(CSV_FILE_PATH)
 
     # Define a dictionary mapping the old column names to the new ones
@@ -468,8 +470,9 @@ def data_visualization():
         top_genes_after.append({'cluster': int(cluster), 'top3': top_genes})
 
    # Use t-SNE for dimensionality reduction
-    tsne = TSNE(n_components=3)
-    clustering_features = tsne.fit_transform(processed_data[features])
+    # tsne = TSNE(n_components=3)
+    pca = PCA(n_components=3)
+    clustering_features = pca.fit_transform(processed_data[features])
 
     clustering_labels = kmeans_after.fit_predict(clustering_features)
 
