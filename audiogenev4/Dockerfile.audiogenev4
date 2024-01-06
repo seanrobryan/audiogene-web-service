@@ -1,0 +1,4 @@
+FROM openjdk:8
+WORKDIR /audiogene4
+COPY . .
+EXPOSE $AUDIOGENE_4_PORT
