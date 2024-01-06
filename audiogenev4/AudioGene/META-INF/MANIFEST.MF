@@ -1,0 +1,8 @@
+Manifest-Version: 1.0
+Rsrc-Class-Path: ./ weka-src.jar poi-3.2-FINAL-20081019.jar multiInsta
+ nceFilters.jar weka.jar mail.jar activation.jar multiInstanceLearning
+ .jar
+Class-Path: .
+Rsrc-Main-Class: com.cbcb.ProbabilityClassifier
+Main-Class: org.eclipse.jdt.internal.jarinjarloader.JarRsrcLoader
+
