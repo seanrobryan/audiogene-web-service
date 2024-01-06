@@ -2,7 +2,6 @@ import logging
 import os
 import subprocess
 from collections import defaultdict
-
 import docker
 import numpy as np
 import pandas as pd
@@ -17,6 +16,7 @@ from sklearn.manifold import TSNE
 from sklearn.model_selection import StratifiedKFold
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.cluster import DBSCAN
+from sklearn.neighbors import NearestNeighbors
 from collections import Counter
 
 app = Flask(__name__)
@@ -505,13 +505,36 @@ def data_visualization():
     'gene': processed_data['gene'].values
     })
 
+    # Perform KNN to find the closest 3 genes for the user's data
+    knn = NearestNeighbors(n_neighbors=3)
+    knn.fit(clustering_features)
+    distances, indices = knn.kneighbors(table_df_features)
+
+    # Retrieve the closest genes and their clusters
+    closest_genes = processed_data.iloc[indices.flatten()]['gene'].values
+    closest_clusters = clustering_labels[indices.flatten()]
+
+    # Structure the data to include the closest genes and their distances
     table_df_data = pd.DataFrame({
         'id': table_df['id'].values,
         'x': table_df_features[:, 0],
         'y': table_df_features[:, 1],
         'z': table_df_features[:, 2],
         'cluster': table_df_labels,
+        'closest_genes': [closest_genes[i:i+3] for i in range(0, len(closest_genes), 3)],
+        'closest_clusters': [closest_clusters[i:i+3] for i in range(0, len(closest_clusters), 3)],
+        'distances_to_closest_genes': [distances[i] for i in range(len(distances))]
     })
+
+    print("table_df_data: ", table_df_data)
+
+    table_df_data = table_df_data.applymap(lambda x: x.tolist() if isinstance(x, np.ndarray) else x)
+
+    print("table_df_data after adjusting: ", table_df_data)
+
+    table_df_data = table_df_data.to_dict(orient='records')
+
+    print("table_df_data after converting to dict: ", table_df_data)
 
     # use dbscan to cluster the data
     dbscan = DBSCAN(eps=0.3, min_samples=3)
@@ -649,6 +672,7 @@ def data_visualization():
 
     # Convert the Series to a dictionary
     gene_counts_dict = gene_counts.to_dict()
+    
 
     # Combine all the data into a single JSON object
     visualization_data = {
@@ -670,7 +694,7 @@ def data_visualization():
         'top_genes_after_encoding': top_genes_after_encoding,
         'geneCounts': gene_counts_dict,
         'geneCountsAfterResampling': gene_counts_after_resampling_dict,
-        'table_df_data': table_df_data.to_dict(orient='records'),
+        'table_df_data': table_df_data,
     }
 
     print("Completed data visualization")
