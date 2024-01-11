@@ -24,12 +24,12 @@ app = Flask(__name__)
 # docker_client = docker.from_env()
 SHARED_DIR = '/' + 'shared_data'
 
-# try:
-#     docker_client = docker.from_env()
-#     docker_client.containers.list()
-# except Exception as e:
-#     print(f"Error connecting to Docker: {e}")
-#     docker_client = None
+try:
+    docker_client = docker.from_env()
+    docker_client.containers.list()
+except Exception as e:
+    print(f"Error connecting to Docker: {e}")
+    docker_client = None
 
 # Get the directory for this file
 path = os.path.dirname(os.path.abspath(__file__))
@@ -93,14 +93,14 @@ def remove_outliers_zscore_per_age_group_and_gene(df, threshold=3, underrepresen
 # function that creates random sample 
 def random_sampling(df, n):
     # Ensure at least one sample from each class
-    df_sampled = df.groupby('gene').apply(lambda x: x.sample(1))
+    df_sampled = df.groupby('gene').apply(lambda x: x.sample(1)).reset_index(drop=True)
     remaining_samples = n - len(df_sampled)
 
     if remaining_samples > 0:
         # Randomly sample the remaining data points
         remaining_df = df.loc[~df.index.isin(df_sampled.index)]
         additional_samples = remaining_df.sample(n=remaining_samples, replace=False)
-        df_sampled = pd.concat([df_sampled, additional_samples])
+        df_sampled = pd.concat([df_sampled, additional_samples]).reset_index(drop=True)
 
     X_res = df_sampled.drop('gene', axis=1)
     y_res = df_sampled['gene']
@@ -108,6 +108,7 @@ def random_sampling(df, n):
 
 def dynamic_class_balancing(df, feature_columns, target_column, label_encoder_gene, label_encoder_ethnicity, class_balancing_methods, totalSamples, underrepresented_threshold=40, overrepresented_threshold=250):
     # Define the target and features
+    print("class balancing methods: ", class_balancing_methods)
     target = df['gene']
     feature_columns = feature_columns + ['ethnicity_encoded']
     features = df[feature_columns]
@@ -186,7 +187,7 @@ def dynamic_class_balancing(df, feature_columns, target_column, label_encoder_ge
     df_resampled['patient_id_family_id'] = new_patient_ids
     # Drop the unique key as it is no longer needed
     df_resampled.drop('unique_key', axis=1, inplace=True)
-
+    print("Resampled data completed")
     return df_resampled, le_gene, label_encoder_ethnicity
 
 
@@ -243,6 +244,7 @@ def assign_genes_to_clusters(cluster_counts, clustering_data):
 
 def assign_genes_to_clusters_greedy(cluster_counts, clustering_data, clustering_features, processed_data):
     assigned_genes, cluster_counts, clustering_data, all_genes_assigned = assign_genes_to_clusters(cluster_counts, clustering_data)
+    i = 0
     # If not all genes have been assigned to a cluster, recluster and try again
     while not all_genes_assigned:
         # Recluster
@@ -262,6 +264,11 @@ def assign_genes_to_clusters_greedy(cluster_counts, clustering_data, clustering_
 
         # Try to assign one gene to each cluster again
         assigned_genes, cluster_counts, clustering_data, all_genes_assigned = assign_genes_to_clusters(cluster_counts_dict, clustering_data)
+
+        # If we have tried to recluster 10 times, give up
+        i += 1
+        if i == 10:
+            break
 
     return assigned_genes, cluster_counts, clustering_data, all_genes_assigned
     
@@ -451,6 +458,8 @@ def data_visualization():
     clustering_data_assigned_genes = clustering_data_assigned_genes.to_dict(orient='records')  # Greedy clustering data
     clustering_data_dbscan = apply_dbscan_and_convert_to_dict(clustering_features, processed_data)  # DBSCAN clustering data
 
+    print("Finished clustering")
+
     # Other data processing and conversion to dictionaries
     heatmap_data, scatter_data, gene_expression_data, audiograms_per_gene, hearing_loss_over_age, hearing_loss_by_frequency, hearing_loss_distribution, ethnicity_distribution = process_additional_data(processed_data, features, gene_labels)
 
@@ -459,6 +468,8 @@ def data_visualization():
 
     # Saving data to Excel
     save_to_excel(processed_data, clustering_data, path=os.path.dirname(os.path.abspath(__file__)))
+
+    print("Finished data processing")
 
     # Combine all data into a single JSON object
     visualization_data = {
@@ -481,183 +492,186 @@ def data_visualization():
         'table_df_data': table_df_data,
     }
 
+    print("Finished data visualization", visualization_data)
+
     print("Completed data visualization")
     return jsonify(visualization_data)
 
 
-# @app.route('/predict/audiogenev4', methods=['POST'])
-# def predict_audiogenev4():
-#     try:
-#         # Check if a file was uploaded
-#         if 'dataFile' not in request.files:
-#             return jsonify({'error': 'No file uploaded'}), 400
+@app.route('/predict/audiogenev4', methods=['POST'])
+def predict_audiogenev4():
+    try:
+        # Check if a file was uploaded
+        if 'dataFile' not in request.files:
+            return jsonify({'error': 'No file uploaded'}), 400
 
-#         file = request.files['dataFile']
+        file = request.files['dataFile']
 
-#         # Check if the file is empty
-#         file.seek(0, os.SEEK_END)
-#         size = file.tell()
-#         file.seek(0)
-#         if size == 0:
-#             return jsonify({'error': 'Uploaded file is empty'}), 400
+        # Check if the file is empty
+        file.seek(0, os.SEEK_END)
+        size = file.tell()
+        file.seek(0)
+        if size == 0:
+            return jsonify({'error': 'Uploaded file is empty'}), 400
 
-#         # Save the uploaded file to a temporary location
-#         filepath = os.path.join(shared_path, file.filename)
-#         try:
-#             file.save(filepath)
-#         except Exception as e:
-#             print(f"Error saving file: {e}")
-#             return jsonify({'error': f'Error saving file: {e}'}), 500
+        # Save the uploaded file to a temporary location
+        filepath = os.path.join(shared_path, file.filename)
+        try:
+            file.save(filepath)
+        except Exception as e:
+            print(f"Error saving file: {e}")
+            return jsonify({'error': f'Error saving file: {e}'}), 500
 
-#         base_service = '/audiogene-web-service-'
-#         file_path = os.path.splitext(filepath)[0]
+        base_service = '/audiogene-web-service-'
+        file_path = os.path.splitext(filepath)[0]
 
-#         # Get convert the input file to a csv
-#         csv_file_path = f"{file_path}.csv"
-#         print("csv file path: ", csv_file_path)
-#         container = get_container_by_name(docker_client, base_service + 'xlstocsv-1')
-#         cmd = f'java -jar ConvertToXLS2CSV.jar {filepath} {csv_file_path}'
-#         # convert xls to csv using python
-#         # import pandas as pd
-#         # data_xls = pd.read_excel(filepath, index_col=None)
-#         # data_xls.to_csv(csv_file_path, encoding='utf-8', index=False)
-#         container.exec_run(cmd)
+        # Get convert the input file to a csv
+        csv_file_path = f"{file_path}.csv"
+        print("csv file path: ", csv_file_path)
+        container = get_container_by_name(docker_client, base_service + 'xlstocsv-1')
+        cmd = f'java -jar ConvertToXLS2CSV.jar {filepath} {csv_file_path}'
+        # convert xls to csv using python
+        # import pandas as pd
+        # data_xls = pd.read_excel(filepath, index_col=None)
+        # data_xls.to_csv(csv_file_path, encoding='utf-8', index=False)
+        container.exec_run(cmd)
 
-#         # Apply perl preprocessing
-#         post_processing_path = f"{file_path}_processed.out"
-#         container = get_container_by_name(docker_client, base_service + 'perl_preprocessor-1')
-#         cmd = f'perl weka-preprocessor.perl -i -a -poly=3 {csv_file_path} > {post_processing_path}'
-#         res = container.exec_run(cmd).output
-#         with open(post_processing_path, 'wb') as f:
-#             f.write(res)
+        # Apply perl preprocessing
+        post_processing_path = f"{file_path}_processed.out"
+        container = get_container_by_name(docker_client, base_service + 'perl_preprocessor-1')
+        cmd = f'perl weka-preprocessor.perl -i -a -poly=3 {csv_file_path} > {post_processing_path}'
+        res = container.exec_run(cmd).output
+        with open(post_processing_path, 'wb') as f:
+            f.write(res)
 
-#         # Send processed file to the classifier
-#         predictions_path = f"{file_path}_predictions.csv"
-#         container = get_container_by_name(docker_client, base_service + 'audiogenev4-1')
-#         cmd = f'java -jar -Xmx2G AudioGene.jar {post_processing_path} audiogene.misvm.model > {predictions_path}'
-#         res = container.exec_run(cmd).output
+        # Send processed file to the classifier
+        predictions_path = f"{file_path}_predictions.csv"
+        container = get_container_by_name(docker_client, base_service + 'audiogenev4-1')
+        cmd = f'java -jar -Xmx2G AudioGene.jar {post_processing_path} audiogene.misvm.model > {predictions_path}'
+        res = container.exec_run(cmd).output
 
-#         # Save predictions to a file
-#         with open(predictions_path, 'wb') as f:
-#             f.write(res.replace(b'\t', b','))  # Replace the sporadic tab seperation with comma seperation
+        # Save predictions to a file
+        with open(predictions_path, 'wb') as f:
+            f.write(res.replace(b'\t', b','))  # Replace the sporadic tab seperation with comma seperation
 
-#         # Read the first line of the file
-#         with open(predictions_path, 'r') as f:
-#             first_line = f.readline().strip()
+        # Read the first line of the file
+        with open(predictions_path, 'r') as f:
+            first_line = f.readline().strip()
 
-#         # Check if the first line contains 'ID' followed by a number
-#         import re
-#         if re.match(r'ID \d+', first_line):
-#             # If it does, read the file without a header
-#             data = pd.read_csv(predictions_path, header=None)
-#         else:
-#             # Otherwise, read the file normally
-#             data = pd.read_csv(predictions_path)
+        # Check if the first line contains 'ID' followed by a number
+        import re
+        if re.match(r'ID \d+', first_line):
+            # If it does, read the file without a header
+            data = pd.read_csv(predictions_path, header=None)
+        else:
+            # Otherwise, read the file normally
+            data = pd.read_csv(predictions_path)
 
-#         # Rename the columns
-#         print("Data read from csv file after predictions: ", data)
-#         data.columns = [x for x in range(1, data.shape[1] + 1)]
-#         print("Data after column renaming: ", data)
+        # Rename the columns
+        print("Data read from csv file after predictions: ", data)
+        data.columns = [x for x in range(1, data.shape[1] + 1)]
+        print("Data after column renaming: ", data)
 
-#         outputFormat = request.form.get('format', 'json')
-#         # Return the result in the desired format
-#         if outputFormat == 'json':
-#             print("returning json: {}".format(data.to_dict(orient='index')))
-#             return jsonify(data.to_dict(orient='index')), 200
-#         elif outputFormat == 'csv':
-#             csv_data = data.to_csv(index=False)
-#             return csv_data, 200, {'Content-Type': 'text/csv'}
-#         else:
-#             return jsonify({'error': 'Unsupported output format'}), 400
-#     except Exception as e:
-#         print(e)
-#         return jsonify({'error': f'Error predicting{e}'}), 500
-
-
-# @app.route('/predict/audiogenev9', methods=['POST'])
-# def predict_audiogenev9():
-#     try:
-#         print('predicting audigenev9')
-#         logging.info('predicting audigenev9')
-#         # Check if a file was uploaded
-#         if 'dataFile' not in request.files:
-#             return jsonify({'error': 'No file uploaded'}), 400
-
-#         file = request.files['dataFile']
-#         print(file)
-
-#         # Check if the file is empty
-#         file.seek(0, os.SEEK_END)
-#         size = file.tell()
-#         file.seek(0)
-#         if size == 0:
-#             return jsonify({'error': 'Uploaded file is empty'}), 400
-
-#         # Save the uploaded file to a temporary location
-#         # filepath = os.path.join(SHARED_DIR, file.filename)
-#         filepath = os.path.join(shared_path, file.filename)
-#         # check if shared dir exists if not create it
-#         if not os.path.exists(shared_path):
-#             os.makedirs(shared_path)
-#         try:
-#             file.save(filepath)
-#         except Exception as e:
-#             print(f"Error saving file: {e}")
-#             return jsonify({'error': f'Error saving file to share_dir: {e}'}), 404
-
-#         base_service = '/audiogene-web-service-'
-#         file_path = os.path.splitext(filepath)[0]
-
-#         o = os.path.join(shared_path, 'ag9_output.csv')
-#         # Save the output to a temporary location
-#         # Create an empty csv file
-#         open(o, 'a').close()
-
-#         m = './audiogene_ml/audiogene-ml/notebooks/saved_models/cur_model_lv3_compression.joblib'
-#         i = filepath
-
-#         cmd = f'python -u ./audiogene_ml/audiogene-ml/predict.py -i {i} -o {o} -m {m}'
-#         print("running command: ", cmd)
-#         container = get_container_by_name(docker_client, base_service + 'audiogenev9-1')
-#         container.exec_run(cmd)
-
-#         print("finished running command")
-
-#         # Read the result using pandas
-#         data = pd.read_csv(o, index_col=0)
-
-#         print(data)
-
-#         outputFormat = request.form.get('format', 'json')
-#         # Return the result in the desired format
-#         if outputFormat == 'json':
-#             print("returning json")
-#             return jsonify(data.to_dict(orient='index')), 200
-#         elif outputFormat == 'csv':
-#             print("returning csv")
-#             csv_data = data.to_csv(index=False)
-#             return csv_data, 200, {'Content-Type': 'text/csv'}
-#         else:
-#             print("returning error")
-#             return jsonify({'error': 'Unsupported output format'}), 400
-#     except Exception as e:
-#         print(e)
-#         return jsonify({'error': f'Error predicting{e}'}), 500
+        outputFormat = request.form.get('format', 'json')
+        # Return the result in the desired format
+        if outputFormat == 'json':
+            print("returning json: {}".format(data.to_dict(orient='index')))
+            return jsonify(data.to_dict(orient='index')), 200
+        elif outputFormat == 'csv':
+            csv_data = data.to_csv(index=False)
+            return csv_data, 200, {'Content-Type': 'text/csv'}
+        else:
+            return jsonify({'error': 'Unsupported output format'}), 400
+    except Exception as e:
+        print(e)
+        return jsonify({'error': f'Error predicting{e}'}), 500
 
 
-# def get_container_by_name(client: docker.client.DockerClient, name: str) -> docker.models.containers.Container:
-#     containers = client.containers.list()
-#     container_by_name = {c.attrs['Name']: c.attrs['Id'] for c in containers}
-#     if name in container_by_name.keys():
-#         container_id = container_by_name[name]
-#         return client.containers.get(container_id)
-#     else:
-#         raise ValueError(f'could not find container {name}')
+@app.route('/predict/audiogenev9', methods=['POST'])
+def predict_audiogenev9():
+    try:
+        print('predicting audigenev9')
+        logging.info('predicting audigenev9')
+        # Check if a file was uploaded
+        if 'dataFile' not in request.files:
+            return jsonify({'error': 'No file uploaded'}), 400
+
+        file = request.files['dataFile']
+        print(file)
+
+        # Check if the file is empty
+        file.seek(0, os.SEEK_END)
+        size = file.tell()
+        file.seek(0)
+        if size == 0:
+            return jsonify({'error': 'Uploaded file is empty'}), 400
+
+        # Save the uploaded file to a temporary location
+        # filepath = os.path.join(SHARED_DIR, file.filename)
+        filepath = os.path.join(shared_path, file.filename)
+        # check if shared dir exists if not create it
+        if not os.path.exists(shared_path):
+            os.makedirs(shared_path)
+        try:
+            file.save(filepath)
+        except Exception as e:
+            print(f"Error saving file: {e}")
+            return jsonify({'error': f'Error saving file to share_dir: {e}'}), 404
+
+        base_service = '/audiogene-web-service-'
+        file_path = os.path.splitext(filepath)[0]
+
+        o = os.path.join(shared_path, 'ag9_output.csv')
+        # Save the output to a temporary location
+        # Create an empty csv file
+        open(o, 'a').close()
+
+        m = './audiogene_ml/audiogene-ml/notebooks/saved_models/cur_model_lv3_compression.joblib'
+        i = filepath
+
+        cmd = f'python -u ./audiogene_ml/audiogene-ml/predict.py -i {i} -o {o} -m {m}'
+        print("running command: ", cmd)
+        container = get_container_by_name(docker_client, base_service + 'audiogenev9-1')
+        container.exec_run(cmd)
+
+        print("finished running command")
+
+        # Read the result using pandas
+        data = pd.read_csv(o, index_col=0)
+
+        print(data)
+
+        outputFormat = request.form.get('format', 'json')
+        # Return the result in the desired format
+        if outputFormat == 'json':
+            print("returning json")
+            return jsonify(data.to_dict(orient='index')), 200
+        elif outputFormat == 'csv':
+            print("returning csv")
+            csv_data = data.to_csv(index=False)
+            return csv_data, 200, {'Content-Type': 'text/csv'}
+        else:
+            print("returning error")
+            return jsonify({'error': 'Unsupported output format'}), 400
+    except Exception as e:
+        print(e)
+        return jsonify({'error': f'Error predicting{e}'}), 500
+
+
+def get_container_by_name(client: docker.client.DockerClient, name: str) -> docker.models.containers.Container:
+    containers = client.containers.list()
+    container_by_name = {c.attrs['Name']: c.attrs['Id'] for c in containers}
+    if name in container_by_name.keys():
+        container_id = container_by_name[name]
+        return client.containers.get(container_id)
+    else:
+        raise ValueError(f'could not find container {name}')
 
 
 # Only executes when running locally OUTSIDE of Docker container
 # __name__ will be 'app' when executing from the container
 if __name__ == '__main__':
-    # app.run(host='127.0.0.1', port=5000, debug=True)
-    app.run(host='0.0.0.0', port=5001, debug=True, use_reloader=False)
-    # app.run(host='0.0.0.0', port=os.getenv('API_INTERNAL_PORT', 5001), debug=True, use_reloader=False)
+    # For testing
+    # app.run(host='0.0.0.0', port=5001, debug=True, use_reloader=False)
+    # For use with Docker
+    app.run(host='0.0.0.0', port=os.getenv('API_INTERNAL_PORT', 5001), debug=True, use_reloader=False)
