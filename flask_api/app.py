@@ -408,7 +408,18 @@ def data_visualization():
     # Impute missing values
     processed_data.fillna(processed_data.mean(numeric_only=True), inplace=True)
     processed_data.fillna('NA', inplace=True)
-    table_df.fillna(processed_data.mean(numeric_only=True), inplace=True)
+    frequency_columns = [col for col in processed_data.columns if 'Hz' in col]
+    for column in frequency_columns:
+        if column in table_df.columns:
+            # Get rows within +/- 5 years of each row's age
+            for i, row in table_df.iterrows():
+                age_range = range(row['age'] - 5, row['age'] + 6)
+                similar_age_rows = processed_data[processed_data['age'].isin(age_range)]
+                # If the value is missing in the table_df DataFrame, fill it with the mean value from the similar_age_rows DataFrame
+                if pd.isnull(table_df.loc[i, column]):
+                    table_df.loc[i, column] = similar_age_rows[column].mean()
+            # After filling the missing values for the current column, interpolate the remaining missing values in the column
+            table_df[column] = table_df[column].interpolate(method='linear', limit_direction='both')
 
     # Encoding and clustering
     label_encoder_gene, label_encoder_ethnicity = LabelEncoder(), LabelEncoder()
@@ -450,6 +461,10 @@ def data_visualization():
 
     # Prepare table_df_data with closest genes and clusters
     table_df_data = prepare_table_df_data(table_df, table_df_features, table_df_labels, closest_genes, closest_clusters, distances)
+
+    # Convert table_df to a dictionary
+    table_df = table_df.to_dict(orient='records')
+
     
     # Clustering data states
     clustering_data_original = clustering_data.to_dict(orient='records')  # Original clustering data
@@ -490,6 +505,7 @@ def data_visualization():
         'geneCounts': gene_counts_dict,
         'geneCountsAfterResampling': gene_counts_after_resampling,
         'table_df_data': table_df_data,
+        'table_df': table_df,
     }
 
     print("Finished data visualization", visualization_data)
